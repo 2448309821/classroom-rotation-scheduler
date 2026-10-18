@@ -1,0 +1,12 @@
+{
+  "name": "classroom-rotation-scheduler",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "日本語教室の担当表を作る割り当てロジック（教室シフトからの抜粋）",
+  "scripts": {
+    "test": "node --test src/schedule.test.js src/lockedAssignments.test.js",
+    "example": "node examples/sample-month.js"
+  },
+  "engines": { "node": ">=18" }
+}
