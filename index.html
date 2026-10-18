@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>担当表デモ | classroom-rotation-scheduler</title>
+<link rel="icon" href="data:,">
+<meta name="description" content="日本語教室の担当表を作る割り当てロジックを、架空のデータでブラウザ上で試せるデモ。">
+<style>
+:root{--bg:#f7f8fa;--card:#fff;--ink:#1b2232;--muted:#5d6676;--line:#dfe4ec;--accent:#3f6282;--warn:#a1501f;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#14181f;--card:#1c222c;--ink:#e7ebf1;--muted:#a3acba;--line:#323b48;--accent:#8fb3d6;--warn:#e3a06e;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.7 system-ui,"Hiragino Sans","Noto Sans JP","Yu Gothic UI",sans-serif}
+main{max-width:1040px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:24px;margin:0 0 6px}
+h2{font-size:17px;margin:0 0 12px}
+p{margin:0 0 10px}
+.lead{color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin-top:20px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{border-bottom:1px solid var(--line);padding:7px 10px;text-align:left;white-space:nowrap}
+thead th{color:var(--muted);font-weight:500}
+select,input{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:3px 6px}
+.options{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center}
+.options label{display:inline-flex;gap:6px;align-items:center}
+button{font:inherit;font-weight:600;color:#fff;background:var(--accent);border:0;border-radius:999px;padding:8px 20px;cursor:pointer}
+@media (prefers-color-scheme:dark){button{color:#14181f}}
+.note{color:var(--warn);font-size:13px}
+.muted{color:var(--muted);font-size:13px}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<main>
+  <h1>担当表デモ</h1>
+  <p class="lead">日本語教室の担当表を作る割り当てロジック（<code>src/schedule.js</code>）を、ブラウザ上でそのまま動かしています。講師・回答はすべて架空のデータです。運用中のアプリや実際のデータには接続していません。</p>
+  <p class="muted"><a href="https://github.com/2448309821/classroom-rotation-scheduler">コードとテスト（GitHub）</a> ・ <a href="https://2448309821.github.io/intro-page/projects/wawon.html">紹介ページ</a></p>
+
+  <section class="card">
+    <h2>1. 講師の回答（2026年10月の土曜日）</h2>
+    <p class="muted">○＝出席・担当可、△＝人数が足りなければ担当、×＝欠席、例会のみ＝例会だけ参加。10/3は例会、10/10は休講の設定です。</p>
+    <div class="scroll"><table id="answers"></table></div>
+  </section>
+
+  <section class="card">
+    <h2>2. 設定</h2>
+    <div class="options">
+      <label>月の担当上限 <input id="limit" type="number" min="1" max="5" value="3" style="width:4em"> 回</label>
+      <label><input id="avoid" type="checkbox" checked> 同じクラスの連続担当・偏りを避ける</label>
+      <label><input id="random" type="checkbox" checked> ランダム（同点の候補から選ぶ）</label>
+      <label>シード <input id="seed" value="demo" style="width:7em"></label>
+      <button id="run" type="button">担当表を作る</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>3. 結果</h2>
+    <div class="scroll"><table id="result"></table></div>
+    <p class="muted" id="summary"></p>
+  </section>
+</main>
+<script type="module">
+import { DEFAULT_CLASSES, ALL_CLASSES, DEFAULT_TEACHERS, DEFAULT_STATUS_OPTIONS, generateSessions, buildSchedule } from './src/schedule.js'
+
+const year = 2026, month = 10, monthKey = `${year}-${month}`
+const sessions = generateSessions(year, month, { [monthKey]: { '10/3': 'meeting', '10/10': 'holiday' } }, {}, {}, {}, DEFAULT_CLASSES, ALL_CLASSES)
+const preset = {
+  '講師A': ['yes', 'no', 'yes', 'yes', 'no'], '講師B': ['yes', 'yes', 'maybe', 'yes', 'yes'],
+  '講師C': ['meeting_only', 'yes', 'yes', 'no', 'yes'], '講師D': ['no', 'yes', 'yes', 'yes', 'maybe'],
+  '講師E': ['yes', 'yes', 'no', 'yes', 'yes'], '講師F': ['yes', 'yes', 'yes', 'maybe', 'yes'],
+  '講師G': ['maybe', 'no', 'yes', 'yes', 'yes'], '講師H': ['yes', 'yes', 'yes', 'no', 'yes'],
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+
+const answers = document.getElementById('answers')
+answers.innerHTML = `<thead><tr><th>講師</th><th>担当できるクラス</th>${sessions.map(s => `<th>${esc(s.label)}${s.meeting ? '（例会）' : s.closed ? '（休講）' : ''}</th>`).join('')}</tr></thead><tbody>${DEFAULT_TEACHERS.map(t => `<tr><th>${esc(t.name)}${t.remote ? '<span class="muted">（遠方）</span>' : ''}</th><td class="muted">${esc(t.classes.join('、'))}</td>${sessions.map((s, i) => `<td><select data-teacher="${esc(t.name)}" data-key="${esc(s.key)}" aria-label="${esc(t.name)} ${esc(s.label)}">${DEFAULT_STATUS_OPTIONS.map(o => `<option value="${o.id}" ${o.id === (preset[t.name]?.[i] ?? 'no') ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select></td>`).join('')}</tr>`).join('')}</tbody>`
+
+function run() {
+  const attendance = {}
+  for (const sel of answers.querySelectorAll('select')) (attendance[sel.dataset.teacher] ??= {})[sel.dataset.key] = sel.value
+  const limit = Number(document.getElementById('limit').value)
+  const teachers = DEFAULT_TEACHERS.map(t => ({ ...t, maxMonthlyAssignments: limit }))
+  const schedule = buildSchedule(attendance, sessions, teachers, DEFAULT_STATUS_OPTIONS, {
+    random: document.getElementById('random').checked,
+    randomSeed: document.getElementById('seed').value || 'demo',
+    avoidRepeatedClasses: document.getElementById('avoid').checked,
+  })
+  document.getElementById('result').innerHTML = `<thead><tr><th>日付</th><th>担当</th><th>メモ</th></tr></thead><tbody>${schedule.map(e => `<tr><th>${esc(e.label)}${e.special ? `<div class="muted">${esc(e.special)}</div>` : ''}</th><td>${Object.entries(e.assignments).map(([c, n]) => `${esc(c)}：${esc(n)}`).join('<br>') || '<span class="muted">なし</span>'}</td><td>${e.notes.map(n => `<div class="note">${esc(n)}</div>`).join('')}</td></tr>`).join('')}</tbody>`
+  const counts = {}
+  schedule.forEach(e => e.selectedTeachers.forEach(n => { counts[n] = (counts[n] ?? 0) + 1 }))
+  document.getElementById('summary').textContent = '担当回数：' + DEFAULT_TEACHERS.map(t => `${t.name} ${counts[t.name] ?? 0}回`).join('、')
+}
+document.getElementById('run').addEventListener('click', run)
+answers.addEventListener('change', run)
+run()
+</script>
+</body>
+</html>
